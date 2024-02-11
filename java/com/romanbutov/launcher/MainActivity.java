@@ -12,7 +12,6 @@ import static android.util.Log.*;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
-import android.widget.ListAdapter;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -24,16 +23,11 @@ import java.util.List;
 
 public final class MainActivity extends ListActivity {
 
-    private List<ComponentName> mComponents = new ArrayList<>();
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        Intent launcherIntent = new Intent();
-        launcherIntent.setAction(Intent.ACTION_MAIN);
-        launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-
+        Intent launcherIntent = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
         List<ResolveInfo> resolves = getPackageManager().queryIntentActivities(launcherIntent, 0);
 
         // prepare usages sorted by the last time
@@ -47,26 +41,28 @@ public final class MainActivity extends ListActivity {
         }
 
         // prepare LRU sorted component list
-        for (UsageStats u : usages) {
+        List<ResolveInfo> listItems = new ArrayList<ResolveInfo>(resolves.size());
+        for (UsageStats usage : usages) {
             Iterator<ResolveInfo> it = resolves.iterator();
             while (it.hasNext()) {
-                ResolveInfo r = it.next();
-                if (u.getPackageName().equals(r.activityInfo.applicationInfo.packageName)) {
-                    mComponents.add(new ComponentName(r.activityInfo.applicationInfo.packageName, r.activityInfo.name));
+                ResolveInfo ri = it.next();
+                if (usage.getPackageName().equals(ri.activityInfo.applicationInfo.packageName)) {
+                    listItems.add(ri);
                     it.remove();
                 }
             }
         }
-
-        setListAdapter(new ApplicationsAdapter(this, mComponents));
+        listItems.addAll(resolves);
+        setListAdapter(new ListAdapter(this, listItems));
 
         getListView().setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView parent, View v, int position, long id) {
-                Intent intent = launcherIntent;
-                ComponentName cn = (ComponentName) parent.getItemAtPosition(position);
-                intent.setComponent(cn);
-                startActivity(intent);
+                ResolveInfo ri = (ResolveInfo) parent.getItemAtPosition(position);
+                launcherIntent
+                    .setClassName(ri.activityInfo.applicationInfo.packageName, ri.activityInfo.name)
+                    .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(launcherIntent);
             }
         });
     }
